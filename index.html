@@ -1,1 +1,58 @@
-temp.html
+<html>
+	<head>
+		<script>
+function initiateShutdown() {
+  var http = new XMLHttpRequest();
+  http.open("POWEROFF", document.location);
+  http.onerror = () => { document.getElementById("main").innerHTML="<h1 style='color:red;'>ERROR</h1>"  }
+  http.onload  = () => { document.getElementById("main").innerHTML="<h1>Shutting down...</h1>"          }
+  http.send();
+  setTimeout(checkShutdown, 5000);
+}
+function checkShutdown() {
+  var http = new XMLHttpRequest();
+  http.timeout = 2000;
+  http.open("GET", document.location);
+  http.ontimeout = () => { document.getElementById("main").innerHTML="<h1>pi4 has shut down</h1>" }
+  http.onload    = () => { document.getElementById("main").innerHTML="<h1 style='color:red;'>Trying again...</h1>";
+    initiateShutdown();
+  }
+  http.send();
+}
+		</script>
+		<style>
+* { font-family: monospace; }
+body { font-size: 2em; }
+button {
+  background-color: #F002;
+  border: 0.1em solid red;
+  color: black;
+  padding: 1em 2em;
+  text-align: center;
+  text-decoration: none;
+  display: inline-block;
+  font-size: 1em;
+  border-radius: 0.5em;
+  transition-duration: 0.25s;
+}
+button:hover {
+  background-color: #F00;
+  color: white;
+}
+#main {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+		</style>
+	</head>
+	<body>
+		<div id="main">
+			<button onclick="initiateShutdown()">
+				POWEROFF
+			</button>
+		</div>
+	</body>
+</html>
