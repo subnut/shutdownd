@@ -3,22 +3,22 @@
 
 
 #include <fcntl.h>
-#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <sys/wait.h>
 
 
 /*
  * fcntl.h	-	open()
- * signal.h	-	signal(), SIG_IGN, SIGCHLD
  * stdio.h	-	perror(), puts()
  * stdlib.h	-	EXIT_{SUCCESS,FAILURE}
  * string.h	-	strlen()
  * unistd.h	-	fork(), sleep()
  * arpa/ineth.h	-	htonl(), htons()
+ * sys/wait.h	-	wait()
  */
 
 
@@ -37,40 +37,15 @@ const char terminate_headers[] = "\r\n";
 
 
 int
-main(void)
+spawn_listener(int sockfd)
 {
-	/* Don't let zombies be created */
-	signal(SIGCHLD, SIG_IGN);
+	switch (fork())
+	{
+		case 0: break;	// I'm the child.
+		case -1: return perror("Could not fork"), EXIT_FAILURE;
+		default: return EXIT_SUCCESS;
+	}
 
-	int sockfd;
-	struct sockaddr_in address;
-
-	address.sin_family = AF_INET;
-	address.sin_addr.s_addr = htonl(INADDR_ANY);
-	address.sin_port = htons((unsigned short)585);
-
-	sockfd = socket(AF_INET, SOCK_STREAM, 0);
-
-	int reuseaddr = 1;
-	if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &reuseaddr, sizeof(reuseaddr)) == -1)
-		return perror("Could not set socket options"),
-		       EXIT_FAILURE;
-
-	if (bind(sockfd, (struct sockaddr *)&address, (socklen_t)sizeof(address)) == -1)
-		return perror("Could not bind"),
-		       EXIT_FAILURE;
-
-	if (listen(sockfd, SOMAXCONN) != 0)
-		return perror("Could not listen"),
-		       EXIT_FAILURE;
-
-	puts("Listening...");
-
-	for (int i=0; i<10; i++)
-		if (fork() == 0)
-			break;
-
-#define BUFSIZE 65535
 	int connfd;
 	char readbuf[BUFSIZE];
 
@@ -115,7 +90,8 @@ main(void)
 			write(connfd, terminate_headers, strlen(terminate_headers));
 			close(connfd);
 			if (execlp(EXEC_COMMAND, EXEC_COMMAND, NULL) == -1)
-				perror("Could not exec");
+				return perror("Could not exec"),
+				       EXIT_FAILURE;
 		}
 #ifdef EBUG
 		for (int i=0; i<=strlen(readbuf); i++)
@@ -123,6 +99,44 @@ main(void)
 			else if (readbuf[i] == '\n') fputs("\\n\n", stderr);
 			else fprintf(stderr, "%c", readbuf[i]);
 #endif /* EBUG */
+	}
+}
+
+
+int
+main(void)
+{
+	int sockfd;
+	struct sockaddr_in address;
+
+	address.sin_family = AF_INET;
+	address.sin_addr.s_addr = htonl(INADDR_ANY);
+	address.sin_port = htons((unsigned short)585);
+
+	sockfd = socket(AF_INET, SOCK_STREAM, 0);
+
+	int reuseaddr = 1;
+	if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &reuseaddr, sizeof(reuseaddr)) == -1)
+		return perror("Could not set socket options"),
+		       EXIT_FAILURE;
+
+	if (bind(sockfd, (struct sockaddr *)&address, (socklen_t)sizeof(address)) == -1)
+		return perror("Could not bind"),
+		       EXIT_FAILURE;
+
+	if (listen(sockfd, SOMAXCONN) != 0)
+		return perror("Could not listen"),
+		       EXIT_FAILURE;
+
+	puts("Listening...");
+
+	for (int i=0; i<THREADS; i++)
+		spawn_listener(sockfd);
+
+	for (;;)
+	{
+		wait(NULL);
+		spawn_listener(sockfd);
 	}
 }
 
