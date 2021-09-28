@@ -1,16 +1,17 @@
 .POSIX:
+.SUFFIXES:
 
 DESTDIR	= /usr/local/bin
-RM 	= rm -rf
+RM	= rm -rf
 
 all: shutdownd
-shutdownd: shutdownd.c
 clean: ; $(RM) shutdownd
+debug: ; $(MAKE) clean shutdownd CFLAGS="$(CFLAGS) -DEBUG"
 
 uninstall: ; $(RM) $(DESTDIR)/shutdownd
 install: shutdownd
 	cp shutdownd $(DESTDIR)/shutdownd
 	sudo chmod 4755 $(DESTDIR)/shutdownd
 
-debug:
-	$(MAKE) clean shutdownd CFLAGS="$(CFLAGS) -DEBUG"
+.SILENT: debug
+.SUFFIXES: .c
